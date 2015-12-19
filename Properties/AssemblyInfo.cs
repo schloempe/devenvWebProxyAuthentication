@@ -8,9 +8,9 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyTitle("devenvWebProxyAuthentication")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("Wuerth IT GmbH")]
+[assembly: AssemblyCompany("")]
 [assembly: AssemblyProduct("devenvWebProxyAuthentication")]
-[assembly: AssemblyCopyright("Copyright © Wuerth IT GmbH 2015")]
+[assembly: AssemblyCopyright("Copyright © Daniel Schloemp 2015")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
