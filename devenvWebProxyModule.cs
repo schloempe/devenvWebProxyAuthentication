@@ -12,6 +12,7 @@ namespace devenvWebProxyAuthentication
         private IWebProxy proxy = null;
         private Uri proxyUri = null;
         private bool successfullyLoggedIn = false;
+        private Object thisLock = new Object();
 
         public devenvWebProxyModule()
         {
@@ -26,16 +27,20 @@ namespace devenvWebProxyAuthentication
         ~devenvWebProxyModule()
         {
             LogSingleton.GetInstance.BeginFunction("devenvWebProxyModule Destructor()");
-            if (proxyUri != null && !successfullyLoggedIn)
+            lock (thisLock)
             {
-                try
+                if (proxyUri != null && !successfullyLoggedIn)
                 {
-                    XMLSettings settings = new XMLSettings(XMLSettingsContext.UserContextRoaming, settingsFilename);
-                    settings.PutSettingEncrypted(string.Format("{0}/password", proxyUri.Host), string.Empty);
-                }
-                catch (Exception ex)
-                {
-                    LogSingleton.GetInstance.Exception(ex);
+                    try
+                    {
+                        XMLSettings settings = new XMLSettings(XMLSettingsContext.UserContextRoaming, settingsFilename);
+                        settings.PutSettingEncrypted(string.Format("{0}/password", proxyUri.Host), string.Empty);
+                        //settings.PutSetting(string.Format("{0}/password", proxyUri.Host), string.Empty);
+                    }
+                    catch (Exception ex)
+                    {
+                        LogSingleton.GetInstance.Exception(ex);
+                    }
                 }
             }
             LogSingleton.GetInstance.EndFunction("devenvWebProxyModule Destructor");
@@ -49,49 +54,54 @@ namespace devenvWebProxyAuthentication
                 LogSingleton.GetInstance.BeginFunction("devenvWebProxyModule Credentials get");
                 try
                 {
-                    if (credentials == null)
+                    lock (thisLock)
                     {
-                        LogSingleton.GetInstance.Message("credentials == null -> evaluate");
-                        if (proxy == null || proxyUri == null)
+                        if (credentials == null)
                         {
-                            LogSingleton.GetInstance.Message("proxy == null -> credentials not needed -> return null");
-                            return null;
-                        }
-
-                        LogSingleton.GetInstance.Message(string.Format("open XMLSettings -> get settings username and password for proxyUri.Host={0}", proxyUri.Host));
-                        XMLSettings settings = new XMLSettings(XMLSettingsContext.UserContextRoaming, settingsFilename);
-                        string username = settings.GetSetting(string.Format("{0}/username", proxyUri.Host), string.Empty);
-                        string password = settings.GetSettingEncrypted(string.Format("{0}/password", proxyUri.Host), string.Empty);
-
-                        LogSingleton.GetInstance.Message(string.Format("username='{0}', password is null or empty? {1}", username, string.IsNullOrEmpty(password)));
-                        if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
-                        {
-                            CredentialsForm form = new CredentialsForm();
-                            form.txtUsername.Text = username;
-                            LogSingleton.GetInstance.Message("CredentialsForm.ShowDialog() ->");
-                            DialogResult result = form.ShowDialog();
-                            if (result == DialogResult.OK)
+                            LogSingleton.GetInstance.Message("credentials == null -> evaluate");
+                            if (proxy == null || proxyUri == null)
                             {
-                                LogSingleton.GetInstance.Message("DialogResult.OK");
-                                username = form.txtUsername.Text;
-                                password = form.txtPassword.Text;
+                                LogSingleton.GetInstance.Message("proxy == null -> credentials not needed -> return null");
+                                return null;
+                            }
 
-                                LogSingleton.GetInstance.Message(string.Format("username='{0}', password is null or empty? {1}", username, string.IsNullOrEmpty(password)));
-                                if (form.ckbStoreCredentials.Checked)
+                            LogSingleton.GetInstance.Message(string.Format("open XMLSettings -> get settings username and password for proxyUri.Host={0}", proxyUri.Host));
+                            XMLSettings settings = new XMLSettings(XMLSettingsContext.UserContextRoaming, settingsFilename);
+                            string username = settings.GetSetting(string.Format("{0}/username", proxyUri.Host), string.Empty);
+                            string password = settings.GetSettingEncrypted(string.Format("{0}/password", proxyUri.Host), string.Empty);
+                            //string password = settings.GetSetting(string.Format("{0}/password", proxyUri.Host), string.Empty);
+
+                            LogSingleton.GetInstance.Message(string.Format("username='{0}', password is null or empty? {1}", username, string.IsNullOrEmpty(password)));
+                            if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
+                            {
+                                CredentialsForm form = new CredentialsForm();
+                                form.txtUsername.Text = username;
+                                LogSingleton.GetInstance.Message("CredentialsForm.ShowDialog() ->");
+                                DialogResult result = form.ShowDialog();
+                                if (result == DialogResult.OK)
                                 {
-                                    LogSingleton.GetInstance.Message(string.Format("store credentials for host {0}", proxyUri.Host));
-                                    settings.PutSetting(string.Format("{0}/username", proxyUri.Host), username);
-                                    settings.PutSettingEncrypted(string.Format("{0}/password", proxyUri.Host), password);
+                                    LogSingleton.GetInstance.Message("DialogResult.OK");
+                                    username = form.txtUsername.Text;
+                                    password = form.txtPassword.Text;
+
+                                    LogSingleton.GetInstance.Message(string.Format("username='{0}', password is null or empty? {1}", username, string.IsNullOrEmpty(password)));
+                                    if (form.ckbStoreCredentials.Checked)
+                                    {
+                                        LogSingleton.GetInstance.Message(string.Format("store credentials for host {0}", proxyUri.Host));
+                                        settings.PutSetting(string.Format("{0}/username", proxyUri.Host), username);
+                                        settings.PutSettingEncrypted(string.Format("{0}/password", proxyUri.Host), password);
+                                        //settings.PutSetting(string.Format("{0}/password", proxyUri.Host), password);
+                                    }
                                 }
                             }
-                        }
 
-                        LogSingleton.GetInstance.Message("credentials = new NetworkCredentials(username, password)");
-                        credentials = new NetworkCredential(username, password);
-                    }
-                    else
-                    {
-                        LogSingleton.GetInstance.Message("credentials != null -> so return them");
+                            LogSingleton.GetInstance.Message("credentials = new NetworkCredentials(username, password)");
+                            credentials = new NetworkCredential(username, password);
+                        }
+                        else
+                        {
+                            LogSingleton.GetInstance.Message("credentials != null -> so return them");
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -120,6 +130,11 @@ namespace devenvWebProxyAuthentication
                 if (destination.AbsoluteUri.Contains("/Avatar"))
                 {
                     LogSingleton.GetInstance.Message("check, if destination contains '/Avatar' -> means successful logon to Microsoft developer network -> successfullyLoggedIn = true");
+                    successfullyLoggedIn = true;
+                }
+                else if (destination.AbsoluteUri.Contains("/ShippedFlights.json"))
+                {
+                    LogSingleton.GetInstance.Message("check, if destination contains '/ShippedFlights.json' (VS 2015) -> means successful logon to Microsoft developer network -> successfullyLoggedIn = true");
                     successfullyLoggedIn = true;
                 }
 
